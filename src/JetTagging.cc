@@ -80,10 +80,9 @@
 using namespace std;
 
 /**
- * This class demonstrates the construction and use of an analysis module
- * within the sPHENIX Fun4All framework. It is intended to show how to
- * obtain physics objects from the analysis tree, and then write them out
- * to a ROOT tree and file for further offline analysis.
+ * JetTagging is a class developed to reconstruct jets containing a D-meson
+ * The class can be adapted to tag jets using any kind of particle
+ * Author: Antonio Silva (antonio.sphenix@gmail.com)
  */
 
 /**
@@ -600,6 +599,7 @@ bool JetTagging::isDecay(SvtxTrack *track, KFParticle *decays[], int nDecays)
 {
   for(int idecay = 0; idecay < nDecays; idecay++)
   {
+    //if(track->get_id() == decays[idecay]->Id()) return true; //KFParticle is not storing SvtxTrack IDs
     if(isSameParticle(track, decays[idecay])) return true;
   }
   //if(isSame) cout << "Track " << track1->get_id() << " removed (tag decay)" << " (px,py,pz): " << track1->get_px() << track1->get_py() << track1->get_pz() << endl;
