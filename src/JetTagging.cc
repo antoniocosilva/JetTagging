@@ -602,7 +602,6 @@ bool JetTagging::isDecay(SvtxTrack *track, KFParticle *decays[], int nDecays)
     //if(track->get_id() == decays[idecay]->Id()) return true; //KFParticle is not storing SvtxTrack IDs
     if(isSameParticle(track, decays[idecay])) return true;
   }
-  //if(isSame) cout << "Track " << track1->get_id() << " removed (tag decay)" << " (px,py,pz): " << track1->get_px() << track1->get_py() << track1->get_pz() << endl;
   return false;
 }
 
@@ -619,11 +618,6 @@ void JetTagging::recMCTaggedJets(PHCompositeNode *topNode, KFParticle *decays[],
   HepMC::GenParticle *mcTag = findMCTag(topNode, decays, nDecays, mcDaughters);
 
   if(!mcTag) return;
-
-  //cout << "Matched D0 px: " << mcTag->momentum().px() << " py: " << mcTag->momentum().py() << " pz: " << mcTag->momentum().pz() << endl;
-  //cout << "Matched D0 barcode: " << mcTag->barcode() << endl;
-
-  //cout << "Tag PDG: " << mcTag->get_pid() << endl;
 
   fastjet::PseudoJet fjMCTag(mcTag->momentum().px(), mcTag->momentum().py(), mcTag->momentum().pz(), mcTag->momentum().e());
   fjMCTag.set_user_index(0); //index 0 is the tag particle
@@ -727,7 +721,6 @@ HepMC::GenParticle* JetTagging::findMCTag(PHCompositeNode *topNode, KFParticle *
   PHG4Particle *g4particle = nullptr;
   SvtxTrack *dauTrack = nullptr;
   HepMC::GenParticle *mcTag[nDecays];
-  //int parent_id[nDecays];
   int mcDauID = 0;
 
   PHNodeIterator nodeIter(topNode);
@@ -773,16 +766,12 @@ HepMC::GenParticle* JetTagging::findMCTag(PHCompositeNode *topNode, KFParticle *
     {
       if(isSameParticle(track, decays[idecay]))
       {
-        //cout << "Daughter track found!" << endl;
-        //cout << "KFParticle daughter px: " << decays[idecay]->Px() << " py: " << decays[idecay]->Py() << " pz: " << decays[idecay]->Pz() << endl;
-        //cout << "Track daughter px: " << track->get_px() << " py: " << track->get_py() << " pz: " << track->get_pz() << endl;
         dauTrack = track;
         std::map<float, std::set<int>> truth_set = dst_reco_truth_map->get(dauTrack->get_id());
         const auto& best_weight = truth_set.rbegin();
         int best_truth_id =  *best_weight->second.rbegin();
         g4particle = truthinfo->GetParticle(best_truth_id);
 
-        //cout << "g4particle daughter px: " << g4particle->get_px() << " py: " << g4particle->get_py() << " pz: " << g4particle->get_pz() << " barcode: " << g4particle->get_barcode() << endl;
 
         mcDaughters[mcDauID] = g4particle;
         mcDauID++;
@@ -790,15 +779,6 @@ HepMC::GenParticle* JetTagging::findMCTag(PHCompositeNode *topNode, KFParticle *
         mcTag[idecay] = getMother(topNode, g4particle);
         if(mcTag[idecay] == 0) return 0;
 
-        //cout << "Rec track px: " << dauTrack->get_px() << " py: " << dauTrack->get_py() << " pz: " << dauTrack->get_pz() << endl;
-        //cout << "Gen track px: " << g4particle->get_px() << " py: " << g4particle->get_py() << " pz: " << g4particle->get_pz() << endl;
-        /*
-        if(hasMCTagParent(g4particle, truthinfo, parent_id[idecay]))
-        {
-          mcTag[idecay] = truthinfo->GetParticle(g4particle->get_parent_id());
-        }
-        else return 0;
-        */
       }
     }
   }
@@ -807,8 +787,6 @@ HepMC::GenParticle* JetTagging::findMCTag(PHCompositeNode *topNode, KFParticle *
   {
     if(mcTag[idecay]->barcode() != mcTag[idecay-1]->barcode()) return 0;
   }
-
-  //cout << "Truth from daughters -> D0 px: " << mcTag[0]->momentum().px() << " py: " << mcTag[0]->momentum().py() << " pz: " << mcTag[0]->momentum().pz() << endl;
 
   return mcTag[0];
 
@@ -857,22 +835,7 @@ bool JetTagging::isDecay(HepMC::GenParticle *particle, PHG4Particle *decays[], i
   }
   return false;
 }
-/*
-bool JetTagging::hasMCTagParent(PHG4Particle *g4particle, PHG4TruthInfoContainer *truthinfo, int &parent_id)
-{
-  PHG4Particle *parent = g4particle;
-  cout << "First Parent ID: " << parent->get_parent_id() << endl;
-  while (parent->get_parent_id() != 0)
-  {
-    parent_id = parent->get_parent_id();
-    cout << "Parent ID: " << parent_id << endl;
-    parent = truthinfo->GetParticle(parent_id);
-    cout << "Parent PDG: " << parent->get_pid() << endl;
-    if(TMath::Abs(parent->get_pid()) == m_tag_pdg) return true;
-  }
-  return false;
-}
-*/
+
 void JetTagging::doMCLoop(PHCompositeNode *topNode)
 {
   PHHepMCGenEventMap *hepmceventmap = findNode::getClass<PHHepMCGenEventMap>(topNode, "PHHepMCGenEventMap");
@@ -892,13 +855,9 @@ void JetTagging::doMCLoop(PHCompositeNode *topNode)
 
   if(!hepmcevent) return;
 
-  //cout << "hepmcevent found!" << endl;
-
   HepMC::GenEvent* hepMCGenEvent = hepmcevent->getEvent();
 
   if(!hepMCGenEvent) return;
-
-  //cout << "hepMCGenEvent found!" << endl;
 
   TDatabasePDG *database = TDatabasePDG::Instance();
   TParticlePDG *partPDG = 0;
