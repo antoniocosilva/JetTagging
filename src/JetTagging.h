@@ -255,19 +255,19 @@ class JetTagging : public SubsysReco
    */
 
   // Tagged-Jet variables
-  double m_tagpartpx;
-  double m_tagpartpy;
-  double m_tagpartpz;
-  double m_tagpartpt;
-  double m_tagparteta;
-  double m_tagpartphi;
-  double m_tagpartm;
-  double m_tagjetpx;
-  double m_tagjetpy;
-  double m_tagjetpz;
-  double m_tagjetpt;
-  double m_tagjeteta;
-  double m_tagjetphi;
+  double m_tagpartpx = -9999.;
+  double m_tagpartpy = -9999.;
+  double m_tagpartpz = -9999.;
+  double m_tagpartpt = -9999.;
+  double m_tagparteta = -9999.;
+  double m_tagpartphi = -9999.;
+  double m_tagpartm = -9999.;
+  double m_tagjetpx = -9999.;
+  double m_tagjetpy = -9999.;
+  double m_tagjetpz = -9999.;
+  double m_tagjetpt = -9999.;
+  double m_tagjeteta = -9999.;
+  double m_tagjetphi = -9999.;
   //Truth info
   double m_truth_tagpartpx = -9999.;
   double m_truth_tagpartpy = -9999.;
