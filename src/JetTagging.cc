@@ -13,7 +13,7 @@
 #include <phool/phool.h>
 
 /// Jet includes
-#include <g4jets/Jet.h>
+#include <g4jets/Jetv1.h>
 #include <g4jets/JetMap.h>
 
 /// Tracking includes
@@ -112,6 +112,7 @@ JetTagging::JetTagging(const std::string &name, const std::string &filename)
   , m_recomb_scheme(fastjet::pt_scheme)
   , m_tag_pdg(421)
   , m_qualy_plots(false)
+  , m_save_dst(false)
 {
   /// Initialize variables and trees so we don't accidentally access
   /// memory that was never allocated
@@ -139,6 +140,8 @@ int JetTagging::Init(PHCompositeNode *topNode)
   }
 
   m_outfile = new TFile(m_outfilename.c_str(), "RECREATE");
+
+  if(m_save_dst) createJetNode(topNode);
 
   m_eventcount_h = new TH1I("eventcount_h", "Event Count", 2, -0.5, 1.5);
   m_eventcount_h->GetXaxis()->SetBinLabel(1,"N ev anal");
@@ -186,6 +189,8 @@ int JetTagging::process_event(PHCompositeNode *topNode)
   KFParticle *D0dau[2];
 
   int nDaughters = 2;//D0cand->NDaughters() is returning 0, bug?
+
+  m_jet_id = 0;
 
   for(unsigned int i = 0; i < kfContainer->size(); i++)
   {
@@ -271,24 +276,32 @@ void JetTagging::recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFPart
 
   Jet* taggedJet = new Jetv1();
 
+  std::map<int, pair<Jet::SRC, int>> fjMap;
+
   fastjet::PseudoJet fjTag(Tag->Px(), Tag->Py(), Tag->Pz(), Tag->E());
   fjTag.set_user_index(0); //index 0 is the tag particle
   particles.push_back(fjTag);
+  fjMap.insert(pair<int, pair<Jet::SRC,int>>(0,std::make_pair(Jet::SRC::PARTICLE,Tag->Id())));
   //int idpart = 1; //index 0 is the tag particle
 
-  if(m_add_tracks) addTracks(topNode, particles, TagDecays, nDecays);
-  if(m_add_EMCal_clusters || m_add_HCal_clusters) addClusters(topNode, particles);
+
+
+  if(m_add_tracks) addTracks(topNode, particles, TagDecays, nDecays, fjMap);
+  if(m_add_EMCal_clusters || m_add_HCal_clusters) addClusters(topNode, particles, fjMap);
 
   fastjet::ClusterSequence jetFinder(particles, *jetdef);
   std::vector<fastjet::PseudoJet> fastjets = jetFinder.inclusive_jets();
 
   delete jetdef;
 
+  bool isD0Jet = false;
+
   for (unsigned int ijet = 0; ijet < fastjets.size(); ++ijet)
   {
     std::vector<fastjet::PseudoJet> comps = fastjets[ijet].constituents();
     for (unsigned int icomp = 0; icomp < comps.size(); ++icomp)
     {
+      taggedJet->insert_comp(fjMap[comps[icomp].user_index()].first, fjMap[comps[icomp].user_index()].second);
       if(comps[icomp].user_index() == 0)
       {
         //cout << "D0 found in jet #" << ijet << endl;
@@ -296,9 +309,18 @@ void JetTagging::recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFPart
         taggedJet->set_py(fastjets[ijet].py());
         taggedJet->set_pz(fastjets[ijet].pz());
         taggedJet->set_e(fastjets[ijet].e());
-        break;
+        taggedJet->set_id(m_jet_id);
+        m_jet_id++;
+        isD0Jet = true;
       }
     }
+    if(isD0Jet) break;
+    else taggedJet->clear_comp();
+  }
+
+  for (Jet::ConstIter citer = taggedJet->begin_comp(); citer != taggedJet->end_comp(); ++citer)
+  {
+    cout << citer->first << " -> " << citer->second << endl;
   }
 
   //cout << "D0 pt: " << Tag->GetPt() << endl;
@@ -320,13 +342,13 @@ void JetTagging::recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFPart
   m_tagjeteta = taggedJet->get_eta();
   m_tagjetphi = taggedJet->get_phi();
 
-
+  m_taggedJetMap->insert(taggedJet);
 
   return;
 
 }
 
-void JetTagging::addTracks(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays)
+void JetTagging::addTracks(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays, std::map<int, std::pair<Jet::SRC, int>> &fjMap)
 {
   SvtxTrackMap *trackmap = findNode::getClass<SvtxTrackMap>(topNode, "SvtxTrackMap");
 
@@ -340,6 +362,8 @@ void JetTagging::addTracks(PHCompositeNode *topNode, std::vector<fastjet::Pseudo
          << endl;
     return;
   }
+
+  cout << "N tracks: " << trackmap->size() << endl;
 
   for (SvtxTrackMap::Iter iter = trackmap->begin();
        iter != trackmap->end();
@@ -357,6 +381,7 @@ void JetTagging::addTracks(PHCompositeNode *topNode, std::vector<fastjet::Pseudo
 
     fjTrack.set_user_index(idpart);
     particles.push_back(fjTrack);
+    fjMap.insert(std::pair<int, std::pair<Jet::SRC,int>>(idpart,std::make_pair(Jet::SRC::TRACK,track->get_id())));
     idpart++;
   }
 
@@ -372,7 +397,7 @@ bool JetTagging::isAcceptableTrack(SvtxTrack *track)
 }
 
 
-void JetTagging::addClusters(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles)
+void JetTagging::addClusters(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, std::map<int, std::pair<Jet::SRC, int>> &fjMap)
 {
 
   GlobalVertexMap *vertexmap = findNode::getClass<GlobalVertexMap>(topNode, "GlobalVertexMap");
@@ -447,6 +472,7 @@ void JetTagging::addClusters(PHCompositeNode *topNode, std::vector<fastjet::Pseu
 
       fjCluster.set_user_index(idpart);
       particles.push_back(fjCluster);
+      fjMap.insert(std::pair<int, std::pair<Jet::SRC,int>>(idpart,std::make_pair(Jet::SRC::CEMC_CLUSTER,cluster->get_id())));
       idpart++;
     }
   }
@@ -931,7 +957,6 @@ void JetTagging::initializeTrees()
   m_taggedjettree->Branch("m_truth_tagjetphi", &m_truth_tagjetphi, "m_truth_tagjetphi/D");
 
 }
-
 /**
  * This function initializes all of the member variables in this class so that there
  * are no variables that might not be set before e.g. writing them to the output
@@ -940,4 +965,51 @@ void JetTagging::initializeTrees()
 void JetTagging::initializeVariables()
 {
   m_outfile = new TFile();
+}
+
+//Inspired by KFParticle_DST::createParticleNode
+int JetTagging::createJetNode(PHCompositeNode* topNode)
+{
+  PHNodeIterator iter(topNode);
+
+  PHCompositeNode* lowerNode = dynamic_cast<PHCompositeNode*>(iter.findFirst("PHCompositeNode", "DST"));
+  if (!lowerNode)
+  {
+    lowerNode = new PHCompositeNode("DST");
+    topNode->addNode(lowerNode);
+    std::cout << "DST node added" << std::endl;
+  }
+
+  std::string baseName;
+  std::string jetNodeName;
+
+  if (m_jetcontainer_name.empty())
+    baseName = "taggedJet";
+  else
+    baseName = m_jetcontainer_name;
+
+  //Cant have forward slashes in DST or else you make a subdirectory on save!!!
+  std::string undrscr = "_";
+  std::string nothing = "";
+  std::map<std::string, std::string> forbiddenStrings;
+  forbiddenStrings["/"] = undrscr;
+  forbiddenStrings["("] = undrscr;
+  forbiddenStrings[")"] = nothing;
+  forbiddenStrings["+"] = "plus";
+  forbiddenStrings["-"] = "minus";
+  forbiddenStrings["*"] = "star";
+  for (auto const& [badString, goodString] : forbiddenStrings)
+  {
+    size_t pos;
+    while ((pos = baseName.find(badString)) != std::string::npos) baseName.replace(pos, 1, goodString);
+  }
+
+  jetNodeName = baseName + "_Jet_Container";
+
+  m_taggedJetMap = new JetMapv1();
+  PHIODataNode<PHObject>* jetNode = new PHIODataNode<PHObject>(m_taggedJetMap, jetNodeName.c_str(), "PHObject");
+  lowerNode->addNode(jetNode);
+  std::cout << jetNodeName << " node added" << std::endl;
+
+  return Fun4AllReturnCodes::EVENT_OK;
 }

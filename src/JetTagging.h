@@ -24,6 +24,8 @@
 #include <HepMC/GenEvent.h>
 
 #include <KFParticle.h>
+#include <g4jets/Jetv1.h>
+#include <g4jets/JetMapv1.h>
 
 #include <vector>
 
@@ -38,7 +40,6 @@ class PHCompositeNode;
 class RawClusterContainer;
 class RawCluster;
 class SvtxTrackMap;
-class JetMap;
 class GlobalVertex;
 class PHHepMCGenEventMap;
 class JetRecoEval;
@@ -173,14 +174,15 @@ class JetTagging : public SubsysReco
   void setMakeQualityPlots(bool q) { m_qualy_plots = q; }
   bool getMakeQualityPlots() { return m_qualy_plots; }
 
-
-
-
-
+  void setJetContainerName(std::string n) {m_jetcontainer_name = n;}
+  std::string getJetContainerName() {return m_jetcontainer_name;}
+  void setSaveDST(bool s) { m_save_dst = s; }
+  bool getSaveDST() { return m_save_dst; }
 
  private:
   /// String to contain the outfile name containing the trees
   std::string m_outfilename;
+  std::string m_jetcontainer_name;
 
   /// Fun4All Histogram Manager tool
   Fun4AllHistoManager *m_hm;
@@ -213,6 +215,7 @@ class JetTagging : public SubsysReco
   fastjet::JetAlgorithm m_jetalgo;
   fastjet::RecombinationScheme m_recomb_scheme;
 
+  JetMapv1* m_taggedJetMap;
 
   /// TFile to hold the following TTrees and histograms
   TFile *m_outfile;
@@ -229,11 +232,13 @@ class JetTagging : public SubsysReco
 
   int m_tag_pdg;
   bool m_qualy_plots;
+  bool m_save_dst;
+  unsigned int m_jet_id = 0;
 
   /// Methods for grabbing the data
   void recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFParticle *TagDecays[], int nDecays);
-  void addTracks(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays);
-  void addClusters(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles);
+  void addTracks(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays, std::map<int, std::pair<Jet::SRC, int>> &fjMap);
+  void addClusters(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, std::map<int, std::pair<Jet::SRC, int>> &fjMap);
   void getTracks(PHCompositeNode *topNode);
   void recMCTaggedJets(PHCompositeNode *topNode, KFParticle *decays[], int nDecays);
   HepMC::GenParticle* findMCTag(PHCompositeNode *topNode, KFParticle *decays[], int nDecays, PHG4Particle *mcDaughters[]);
@@ -249,6 +254,7 @@ class JetTagging : public SubsysReco
   bool isDecay(SvtxTrack *track, KFParticle *decays[], int nDecays);
   void initializeVariables();
   void initializeTrees();
+  int createJetNode(PHCompositeNode* topNode);
 
   /**
    * Make variables for the relevant trees

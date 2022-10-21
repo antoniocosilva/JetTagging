@@ -7,6 +7,7 @@ R__LOAD_LIBRARY(libdecayfinder.so)
 #include <QA.C>
 
 #include </sphenix/u/antoniosilva/myInstall/include/jettagging/JetTagging.h>
+#include </sphenix/u/antoniosilva/myInstall/include/newtask/NewTask.h>
 
 #include <FROG.h>
 #include <decayfinder/DecayFinder.h>
@@ -19,6 +20,7 @@ R__LOAD_LIBRARY(libdecayfinder.so)
 //R__LOAD_LIBRARY(libqa_modules.so)
 R__LOAD_LIBRARY(libfun4all.so)
 R__LOAD_LIBRARY(/sphenix/u/antoniosilva/myInstall/lib/libjettagging.so)
+R__LOAD_LIBRARY(/sphenix/u/antoniosilva/myInstall/lib/libnewtask.so)
 
 using namespace std;
 using namespace HeavyFlavorReco;
@@ -137,6 +139,8 @@ void Fun4All_MDC2reco(vector<string> myInputLists = {"condorJob/fileLists/produc
   jetTag->setHCalClusterEtaAcc(-1.1, 1.1);
   jetTag->setJetParameters(0.3, JetTagging::ALGO::ANTIKT, JetTagging::RECOMB::PT_SCHEME);
   jetTag->setMakeQualityPlots(true);
+  jetTag->setJetContainerName("D0Jets");
+  jetTag->setSaveDST(true);
   se->registerSubsystem(jetTag);
 
   se->run(nEvents);
