@@ -48,6 +48,7 @@ class PHG4TruthInfoContainer;
 class PHHepMCGenEvent;
 class SvtxTrack;
 class PHG4Particle;
+class ParticleFlowElement;
 
 /// Definition of this analysis module class
 class JetTagging : public SubsysReco
@@ -85,6 +86,13 @@ class JetTagging : public SubsysReco
 
   /// SubsysReco end processing method
   int End(PHCompositeNode *);
+
+  //Particle flow
+  void setParticleFlowEtaAcc(double etamin, double etamax) { m_particleflow_mineta = etamin; m_particleflow_maxeta = etamax; }
+  void setParticleFlowMinEta(double etamin) { m_particleflow_mineta = etamin; }
+  void setParticleFlowMaxEta(double etamax) { m_particleflow_maxeta = etamax; }
+  double getParticleFlowMinEta() { return m_particleflow_mineta; }
+  double getParticleFlowMaxEta() { return m_particleflow_maxeta; }
 
   //tracks
   void setTrackPtAcc(double ptmin, double ptmax) { m_track_minpt = ptmin; m_track_maxpt = ptmax; }
@@ -126,11 +134,13 @@ class JetTagging : public SubsysReco
   double getHCalClusterMaxEta() { return m_HCal_cluster_maxeta; }
 
   //Set/Get add Tracks and Clusters
-  void setAddTracks(bool addTracks) { m_add_tracks = addTracks; }
+  void setAddParticleFlow(bool b) { m_add_particleflow = b; }
+  bool getAddParticleFlow() { return m_add_particleflow; }
+  void setAddTracks(bool b) { m_add_tracks = b; }
   bool getAddTracks() { return m_add_tracks; }
-  void setAddEMCalClusters(bool addEMCalClusters) { m_add_EMCal_clusters = addEMCalClusters; }
+  void setAddEMCalClusters(bool b) { m_add_EMCal_clusters = b; }
   bool getAddEMCalClusters() { return m_add_EMCal_clusters; }
-  void setAddHCalClusters(bool addHCalClusters) { m_add_HCal_clusters = addHCalClusters; }
+  void setAddHCalClusters(bool b) { m_add_HCal_clusters = b; }
   bool getAddHCalClusters() { return m_add_HCal_clusters; }
 
   //Jet settings
@@ -187,6 +197,10 @@ class JetTagging : public SubsysReco
   /// Fun4All Histogram Manager tool
   Fun4AllHistoManager *m_hm;
 
+  /// Particle Flow selection and acceptance
+  double m_particleflow_mineta;
+  double m_particleflow_maxeta;
+
   /// Track selection and acceptance
   double m_track_minpt;
   double m_track_maxpt;
@@ -206,6 +220,7 @@ class JetTagging : public SubsysReco
   double m_HCal_cluster_maxeta;
 
   /// Add Tracks and Clusters
+  bool m_add_particleflow;
   bool m_add_tracks;
   bool m_add_EMCal_clusters;
   bool m_add_HCal_clusters;
@@ -216,6 +231,7 @@ class JetTagging : public SubsysReco
   fastjet::RecombinationScheme m_recomb_scheme;
 
   JetMapv1* m_taggedJetMap;
+  JetMapv1* m_truth_taggedJetMap;
 
   /// TFile to hold the following TTrees and histograms
   TFile *m_outfile;
@@ -233,10 +249,13 @@ class JetTagging : public SubsysReco
   int m_tag_pdg;
   bool m_qualy_plots;
   bool m_save_dst;
+  bool m_save_truth_dst;
   unsigned int m_jet_id = 0;
+  unsigned int m_truth_jet_id = 0;
 
   /// Methods for grabbing the data
   void recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFParticle *TagDecays[], int nDecays);
+  void addParticleFlow(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays, std::map<int, std::pair<Jet::SRC, int>> &fjMap);
   void addTracks(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays, std::map<int, std::pair<Jet::SRC, int>> &fjMap);
   void addClusters(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, std::map<int, std::pair<Jet::SRC, int>> &fjMap);
   void getTracks(PHCompositeNode *topNode);
@@ -246,6 +265,7 @@ class JetTagging : public SubsysReco
   //bool hasMCTagParent(PHG4Particle *g4particle, PHG4TruthInfoContainer *truthinfo, int &parent_id);
   void doMCLoop(PHCompositeNode *topNode);
 
+  bool isAcceptableParticleFlow(ParticleFlowElement* pfPart);
   bool isAcceptableTrack(SvtxTrack *track);
   bool isAcceptableEMCalCluster(CLHEP::Hep3Vector &E_vec_cluster);
   bool isAcceptableHCalCluster(CLHEP::Hep3Vector &E_vec_cluster);

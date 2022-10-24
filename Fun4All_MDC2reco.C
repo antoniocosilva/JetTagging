@@ -17,10 +17,15 @@ R__LOAD_LIBRARY(libdecayfinder.so)
 #include <g4eval/SvtxEvaluator.h>
 #include <g4eval/SvtxTruthRecoTableEval.h>
 
+#include <caloreco/RawClusterBuilderTopo.h>
+#include <particleflowreco/ParticleFlowReco.h>
+
 //R__LOAD_LIBRARY(libqa_modules.so)
 R__LOAD_LIBRARY(libfun4all.so)
 R__LOAD_LIBRARY(/sphenix/u/antoniosilva/myInstall/lib/libjettagging.so)
 R__LOAD_LIBRARY(/sphenix/u/antoniosilva/myInstall/lib/libnewtask.so)
+R__LOAD_LIBRARY(libcalo_reco.so)
+R__LOAD_LIBRARY(libparticleflow.so)
 
 using namespace std;
 using namespace HeavyFlavorReco;
@@ -127,8 +132,40 @@ void Fun4All_MDC2reco(vector<string> myInputLists = {"condorJob/fileLists/produc
   }
 */
 
+  RawClusterBuilderTopo* ClusterBuilder1 = new RawClusterBuilderTopo("HcalRawClusterBuilderTopo1");
+  ClusterBuilder1->Verbosity(verbosity);
+  ClusterBuilder1->set_nodename("TOPOCLUSTER_EMCAL");
+  ClusterBuilder1->set_enable_HCal(false);
+  ClusterBuilder1->set_enable_EMCal(true);
+  ClusterBuilder1->set_noise(0.0025, 0.006, 0.03);
+  ClusterBuilder1->set_significance(4.0, 2.0, 0.0);
+  ClusterBuilder1->allow_corner_neighbor(true);
+  ClusterBuilder1->set_do_split(true);
+  ClusterBuilder1->set_minE_local_max(1.0, 2.0, 0.5);
+  ClusterBuilder1->set_R_shower(0.025);
+  se->registerSubsystem(ClusterBuilder1);
+
+  RawClusterBuilderTopo* ClusterBuilder2 = new RawClusterBuilderTopo("HcalRawClusterBuilderTopo2");
+  ClusterBuilder2->Verbosity(verbosity);
+  ClusterBuilder2->set_nodename("TOPOCLUSTER_HCAL");
+  ClusterBuilder2->set_enable_HCal(true);
+  ClusterBuilder2->set_enable_EMCal(false);
+  ClusterBuilder2->set_noise(0.0025, 0.006, 0.03);
+  ClusterBuilder2->set_significance(4.0, 2.0, 0.0);
+  ClusterBuilder2->allow_corner_neighbor(true);
+  ClusterBuilder2->set_do_split(true);
+  ClusterBuilder2->set_minE_local_max(1.0, 2.0, 0.5);
+  ClusterBuilder2->set_R_shower(0.025);
+  se->registerSubsystem(ClusterBuilder2);
+
+  ParticleFlowReco *pfr = new ParticleFlowReco();
+  pfr->set_energy_match_Nsigma(1.5);
+  pfr->Verbosity(1);
+  se->registerSubsystem(pfr);
+
   JetTagging *jetTag = new JetTagging("D0Tagging", outDir + "JetTagging_" + fileNumber + ".root");
   jetTag->Verbosity(1);
+  /*
   jetTag->setAddTracks(true);
   jetTag->setAddEMCalClusters(true);
   jetTag->setTrackPtAcc(0.2, 9999.);
@@ -137,6 +174,8 @@ void Fun4All_MDC2reco(vector<string> myInputLists = {"condorJob/fileLists/produc
   jetTag->setEMCalClusterEtaAcc(-1.1, 1.1);
   jetTag->setHCalClusterPtAcc(0.3, 9999.);
   jetTag->setHCalClusterEtaAcc(-1.1, 1.1);
+  */
+  jetTag->setParticleFlowEtaAcc(-1.1, 1.1);
   jetTag->setJetParameters(0.3, JetTagging::ALGO::ANTIKT, JetTagging::RECOMB::PT_SCHEME);
   jetTag->setMakeQualityPlots(true);
   jetTag->setJetContainerName("D0Jets");

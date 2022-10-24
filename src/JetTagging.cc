@@ -62,6 +62,10 @@
 #include <trackbase_historic/SvtxPHG4ParticleMap_v1.h>
 #include <kfparticle_sphenix/KFParticle_truthAndDetTools.h>
 
+//Particle Flow
+#include <particleflowreco/ParticleFlowElement.h>
+#include <particleflowreco/ParticleFlowElementContainer.h>
+
 /// ROOT includes
 #include <TFile.h>
 #include <TH1.h>
@@ -92,6 +96,8 @@ JetTagging::JetTagging(const std::string &name, const std::string &filename)
   : SubsysReco(name)
   , m_outfilename(filename)
   , m_hm(nullptr)
+  , m_particleflow_mineta(-1.1)
+  , m_particleflow_maxeta(1.1)
   , m_track_minpt(0.)
   , m_track_maxpt(9999.)
   , m_track_mineta(-1.1)
@@ -104,7 +110,8 @@ JetTagging::JetTagging(const std::string &name, const std::string &filename)
   , m_HCal_cluster_maxpt(9999.)
   , m_HCal_cluster_mineta(-1.1)
   , m_HCal_cluster_maxeta(1.1)
-  , m_add_tracks(true)
+  , m_add_particleflow(true)
+  , m_add_tracks(false)
   , m_add_EMCal_clusters(false)
   , m_add_HCal_clusters(false)
   , m_jetr(0.4)
@@ -197,17 +204,17 @@ int JetTagging::process_event(PHCompositeNode *topNode)
     D0cand = kfContainer->get(i);
     if(TMath::Abs(D0cand->GetPDG()) == m_tag_pdg)
     {
-      //cout << "Rec D0 px: " << D0cand->Px() << " py: " << D0cand->Py() << " pz: " << D0cand->Pz() << endl;
       m_eventcount_h->Fill(1);
       D0dau[0] = kfContainer->get(i+1);
       D0dau[1] = kfContainer->get(i+2);
 
       //cout << "D0: " << D0cand->GetPDG();
+      /*
       cout << "D0dau0: " << D0dau[0]->GetPDG() << endl;
       cout << "D0dau0 ID: " << D0dau[0]->Id() << endl;
       cout << "D0dau1: " << D0dau[1]->GetPDG() << endl;
       cout << "D0dau1 ID: " << D0dau[1]->Id() << endl;
-
+      */
       recTaggedJets(topNode, D0cand, D0dau, nDaughters);
       recMCTaggedJets(topNode, D0dau, nDaughters);
       m_rec_tagpart_pt->Fill(D0cand->GetPt());
@@ -281,11 +288,11 @@ void JetTagging::recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFPart
   fastjet::PseudoJet fjTag(Tag->Px(), Tag->Py(), Tag->Pz(), Tag->E());
   fjTag.set_user_index(0); //index 0 is the tag particle
   particles.push_back(fjTag);
-  fjMap.insert(pair<int, pair<Jet::SRC,int>>(0,std::make_pair(Jet::SRC::PARTICLE,Tag->Id())));
+  fjMap.insert(pair<int, pair<Jet::SRC,int>>(0,std::make_pair(Jet::SRC::VOID,Tag->Id()))); //Maybe we could have a Jet::SRC::HF for HF-tagging?
   //int idpart = 1; //index 0 is the tag particle
 
 
-
+  if(m_add_particleflow) addParticleFlow(topNode, particles, TagDecays, nDecays, fjMap);
   if(m_add_tracks) addTracks(topNode, particles, TagDecays, nDecays, fjMap);
   if(m_add_EMCal_clusters || m_add_HCal_clusters) addClusters(topNode, particles, fjMap);
 
@@ -304,7 +311,6 @@ void JetTagging::recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFPart
       taggedJet->insert_comp(fjMap[comps[icomp].user_index()].first, fjMap[comps[icomp].user_index()].second);
       if(comps[icomp].user_index() == 0)
       {
-        //cout << "D0 found in jet #" << ijet << endl;
         taggedJet->set_px(fastjets[ijet].px());
         taggedJet->set_py(fastjets[ijet].py());
         taggedJet->set_pz(fastjets[ijet].pz());
@@ -317,13 +323,12 @@ void JetTagging::recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFPart
     if(isD0Jet) break;
     else taggedJet->clear_comp();
   }
-
+/*
   for (Jet::ConstIter citer = taggedJet->begin_comp(); citer != taggedJet->end_comp(); ++citer)
   {
     cout << citer->first << " -> " << citer->second << endl;
   }
-
-  //cout << "D0 pt: " << Tag->GetPt() << endl;
+*/
 
   m_tagpartpx = Tag->Px();
   m_tagpartpy = Tag->Py();
@@ -333,7 +338,6 @@ void JetTagging::recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFPart
   m_tagpartphi = Tag->GetPhi();
   m_tagpartm = Tag->GetMass();
 
-  //cout << "D0-Jet pt: " << taggedJet->get_pt() << endl;
 
   m_tagjetpx = taggedJet->get_px();
   m_tagjetpy = taggedJet->get_py();
@@ -346,6 +350,50 @@ void JetTagging::recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFPart
 
   return;
 
+}
+
+void JetTagging::addParticleFlow(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays, std::map<int, std::pair<Jet::SRC, int>> &fjMap)
+{
+  ParticleFlowElementContainer *pflowContainer = findNode::getClass<ParticleFlowElementContainer>(topNode, "ParticleFlowElements");
+
+  SvtxTrack *track = 0;
+
+  std::vector<RawCluster*> pfEMCalClusters;
+  std::vector<RawCluster*> pfHCalClusters;
+
+  int idpart = particles.size();
+
+  ParticleFlowElementContainer::ConstRange begin_end = pflowContainer->getParticleFlowElements();
+  ParticleFlowElementContainer::ConstIterator rtiter;
+  for (rtiter = begin_end.first; rtiter != begin_end.second; ++rtiter)
+  {
+    ParticleFlowElement *pflow = rtiter->second;
+
+    if(!pflow) continue;
+
+    if(!isAcceptableParticleFlow(pflow)) continue;
+
+    track = pflow->get_track();
+
+    // Remove D0 decay daughter
+    if(track && isDecay(track, TagDecays, nDecays)) continue;
+
+    fastjet::PseudoJet fjPartFlow(pflow->get_px(), pflow->get_py(), pflow->get_pz(), pflow->get_e());
+
+    fjPartFlow.set_user_index(idpart);
+    particles.push_back(fjPartFlow);
+    fjMap.insert(std::pair<int, std::pair<Jet::SRC,int>>(idpart,std::make_pair(Jet::SRC::PARTICLE,pflow->get_id())));
+    idpart++;
+  }
+
+}
+
+bool JetTagging::isAcceptableParticleFlow(ParticleFlowElement* pfPart)
+{
+  //Only eta cut at this moment
+  if((pfPart->get_eta() < m_particleflow_mineta) || (pfPart->get_eta() > m_particleflow_maxeta)) return false;
+
+  return true;
 }
 
 void JetTagging::addTracks(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays, std::map<int, std::pair<Jet::SRC, int>> &fjMap)
@@ -363,13 +411,13 @@ void JetTagging::addTracks(PHCompositeNode *topNode, std::vector<fastjet::Pseudo
     return;
   }
 
-  cout << "N tracks: " << trackmap->size() << endl;
+  SvtxTrack *track = 0;
 
   for (SvtxTrackMap::Iter iter = trackmap->begin();
        iter != trackmap->end();
        ++iter)
   {
-    SvtxTrack *track = iter->second;
+    track = iter->second;
 
     if(!isAcceptableTrack(track)) continue;
 
@@ -626,7 +674,12 @@ bool JetTagging::isDecay(SvtxTrack *track, KFParticle *decays[], int nDecays)
   for(int idecay = 0; idecay < nDecays; idecay++)
   {
     //if(track->get_id() == decays[idecay]->Id()) return true; //KFParticle is not storing SvtxTrack IDs
-    if(isSameParticle(track, decays[idecay])) return true;
+    if(isSameParticle(track, decays[idecay]))
+    {
+      cout << "Is Decay!" << endl;
+      cout << "Track pt: " << track->get_pt() << endl;
+      return true;
+    }
   }
   return false;
 }
