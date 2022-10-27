@@ -188,6 +188,10 @@ class JetTagging : public SubsysReco
   std::string getJetContainerName() {return m_jetcontainer_name;}
   void setSaveDST(bool s) { m_save_dst = s; }
   bool getSaveDST() { return m_save_dst; }
+  void setIsMC(bool b) { m_ismc = b; }
+  bool getIsMC() { return m_ismc; }
+  void setSaveDSTMC(bool s) { m_save_truth_dst = s; }
+  bool getSaveDSTMC() { return m_save_truth_dst; }
 
  private:
   /// String to contain the outfile name containing the trees
@@ -252,17 +256,19 @@ class JetTagging : public SubsysReco
   bool m_save_truth_dst;
   unsigned int m_jet_id = 0;
   unsigned int m_truth_jet_id = 0;
+  bool m_ismc;
 
   /// Methods for grabbing the data
-  void recTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFParticle *TagDecays[], int nDecays);
+  void findTaggedJets(PHCompositeNode *topNode, KFParticle *Tag, KFParticle *TagDecays[], int nDecays);
   void addParticleFlow(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays, std::map<int, std::pair<Jet::SRC, int>> &fjMap);
   void addTracks(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, KFParticle *TagDecays[], int nDecays, std::map<int, std::pair<Jet::SRC, int>> &fjMap);
   void addClusters(PHCompositeNode *topNode, std::vector<fastjet::PseudoJet> &particles, std::map<int, std::pair<Jet::SRC, int>> &fjMap);
   void getTracks(PHCompositeNode *topNode);
-  void recMCTaggedJets(PHCompositeNode *topNode, KFParticle *decays[], int nDecays);
+  HepMC::GenParticle* findMCTaggedJets(PHCompositeNode *topNode, KFParticle *decays[], int nDecays);
   HepMC::GenParticle* findMCTag(PHCompositeNode *topNode, KFParticle *decays[], int nDecays, PHG4Particle *mcDaughters[]);
   HepMC::GenParticle* getMother(PHCompositeNode *topNode, PHG4Particle *g4daughter);
   //bool hasMCTagParent(PHG4Particle *g4particle, PHG4TruthInfoContainer *truthinfo, int &parent_id);
+  void findNonRecMC(PHCompositeNode *topNode, std::vector<HepMC::GenParticle*> mcTags);
   void doMCLoop(PHCompositeNode *topNode);
 
   bool isAcceptableParticleFlow(ParticleFlowElement* pfPart);
@@ -275,6 +281,7 @@ class JetTagging : public SubsysReco
   void initializeVariables();
   void initializeTrees();
   int createJetNode(PHCompositeNode* topNode);
+  void resetTreeVariables();
 
   /**
    * Make variables for the relevant trees
